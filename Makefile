@@ -1,5 +1,7 @@
 # dns based ad/abuse domain blocking
+#
 # Copyright (c) 2015-2026 Dirk Brenken (dev@brenken.org)
+#
 # This is free software, licensed under the GNU General Public License v3.
 #
 
@@ -7,7 +9,8 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=adblock
 PKG_VERSION:=4.5.7
-PKG_RELEASE:=2
+PKG_RELEASE:=100
+
 PKG_LICENSE:=GPL-3.0-or-later
 PKG_MAINTAINER:=Dirk Brenken <dev@brenken.org>
 
@@ -22,10 +25,11 @@ define Package/adblock
 endef
 
 define Package/adblock/description
-adblock blocks ad/abuse domains via dnsmasq, unbound, named, smartdns or kresd.
-adblock consumes a minimum of memory, is very fast and supports many domain blocklist sites plus local block- and allowlist overrides.
-Please see https://github.com/openwrt/packages/blob/master/net/adblock/files/README.md for further information.
-
+	adblock blocks ad/abuse domains via dnsmasq, unbound, named, smartdns or kresd.
+	adblock consumes a minimum of memory, is very fast and supports many
+	domain blocklist sites plus local block- and allowlist overrides.
+	Please see https://github.com/openwrt/packages/blob/master/net/adblock/files/README.md
+	for further information.
 endef
 
 define Package/adblock/conffiles
