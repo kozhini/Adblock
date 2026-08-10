@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -12,26 +11,25 @@ permissions:
 
 env:
   OPENWRT_VERSION: "24.10.6"
-  OPENWRT_TARGET: "mediatek/filogic"
   SDK_URL: "https://downloads.openwrt.org/releases/24.10.6/targets/mediatek/filogic/openwrt-sdk-24.10.6-mediatek-filogic_gcc-13.3.0_musl.Linux-x86_64.tar.zst"
 
 jobs:
   build:
-    name: Build adblock
+    name: Build adblock 4.5.7
     runs-on: ubuntu-24.04
 
     steps:
-      - name: Checkout package
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install build dependencies
+      - name: Install host dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             build-essential \
+            bison \
             clang \
             flex \
-            bison \
             gawk \
             gettext \
             git \
@@ -48,78 +46,60 @@ jobs:
 
       - name: Download OpenWrt SDK
         run: |
-          wget -q --show-progress "${SDK_URL}" -O /tmp/openwrt-sdk.tar.zst
+          wget -q --show-progress \
+            "$SDK_URL" \
+            -O /tmp/openwrt-sdk.tar.zst
 
       - name: Extract OpenWrt SDK
         run: |
           mkdir -p "$HOME/sdk"
-          tar --use-compress-program=unzstd \
+
+          tar \
+            --use-compress-program=unzstd \
             -xf /tmp/openwrt-sdk.tar.zst \
             -C "$HOME/sdk"
 
           SDK_DIR="$(find "$HOME/sdk" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
 
           if [ -z "$SDK_DIR" ]; then
-            echo "ERROR: SDK directory not found"
+            echo "ERROR: SDK directory was not found"
             exit 1
           fi
 
           echo "SDK_DIR=$SDK_DIR" >> "$GITHUB_ENV"
 
-      - name: Show SDK information
+      - name: Prepare SDK
         working-directory: ${{ env.SDK_DIR }}
         run: |
-          echo "SDK: $SDK_DIR"
-          echo "Target: $OPENWRT_TARGET"
-          echo "OpenWrt: $OPENWRT_VERSION"
-          make --version | head -n 1
+          ./scripts/feeds update -a
 
-      - name: Update package feed
-        working-directory: ${{ env.SDK_DIR }}
-        run: |
-          ./scripts/feeds update packages
-
-      - name: Install required dependency packages
-        working-directory: ${{ env.SDK_DIR }}
-        run: |
-          ./scripts/feeds install \
-            jshn \
-            jsonfilter \
-            firewall4 \
-            coreutils \
-            coreutils-sort \
-            gawk \
-            ca-bundle \
-            rpcd \
-            rpcd-mod-rpcsys
-
-      - name: Install custom adblock package
+      - name: Add adblock package
         run: |
           rm -rf "${SDK_DIR}/package/adblock"
           mkdir -p "${SDK_DIR}/package/adblock"
 
-          cp -a Makefile "${SDK_DIR}/package/adblock/"
+          cp Makefile "${SDK_DIR}/package/adblock/Makefile"
+          cp -a files "${SDK_DIR}/package/adblock/files"
 
-          cp -a files "${SDK_DIR}/package/adblock/"
-
-      - name: Verify package tree
+      - name: Verify package
         working-directory: ${{ env.SDK_DIR }}
         run: |
-          echo "=== package/adblock ==="
-          find package/adblock -maxdepth 2 -type f -print | sort
+          echo "=== Makefile ==="
+          sed -n '1,120p' package/adblock/Makefile
 
           echo
-          echo "=== Makefile ==="
-          sed -n '1,220p' package/adblock/Makefile
+          echo "=== Files ==="
+          find package/adblock/files -maxdepth 1 -type f -print | sort
 
           echo
           echo "=== sort handling ==="
-          grep -n -A5 -B5 'sort-coreutils' package/adblock/files/adblock.sh
+          grep -n -A6 -B4 'sort-coreutils' \
+            package/adblock/files/adblock.sh || true
 
-      - name: Configure SDK
+      - name: Configure package
         working-directory: ${{ env.SDK_DIR }}
         run: |
-          echo 'CONFIG_PACKAGE_adblock=m' > .config
+          echo "CONFIG_PACKAGE_adblock=m" > .config
           make defconfig
 
       - name: Build adblock
@@ -127,39 +107,49 @@ jobs:
         run: |
           make package/adblock/compile V=s
 
-      - name: Verify package
+      - name: Find package
         working-directory: ${{ env.SDK_DIR }}
         run: |
-          echo "=== Generated packages ==="
-          find bin/packages -type f -name 'adblock_*.ipk' -print
+          echo "=== Generated adblock packages ==="
 
-          PACKAGE="$(find bin/packages -type f -name 'adblock_*.ipk' | head -n 1)"
+          find bin/packages \
+            -type f \
+            -name 'adblock_*.ipk' \
+            -print
+
+          PACKAGE="$(find bin/packages \
+            -type f \
+            -name 'adblock_*.ipk' \
+            | head -n 1)"
 
           if [ -z "$PACKAGE" ]; then
-            echo "ERROR: adblock package was not generated"
+            echo "ERROR: adblock .ipk was not generated"
             exit 1
           fi
 
-          echo
-          echo "=== Package information ==="
-          tar -xOf "$PACKAGE" ./control.tar.zst 2>/dev/null | \
-            tar -xOzf - ./control 2>/dev/null || true
+          echo "PACKAGE=$PACKAGE" >> "$GITHUB_ENV"
 
-      - name: Collect package
+      - name: Verify package metadata
+        run: |
+          echo "Package:"
+          ls -lh "$SDK_DIR/$PACKAGE"
+
+          echo
+          echo "Package type:"
+          file "$SDK_DIR/$PACKAGE"
+
+      - name: Collect artifact
         run: |
           mkdir -p artifacts
 
-          find "${SDK_DIR}/bin/packages" \
-            -type f \
-            \( -name 'adblock_*.ipk' -o -name 'Packages.adb' -o -name 'Packages.gz' \) \
-            -exec cp {} artifacts/ \;
+          cp "$SDK_DIR/$PACKAGE" artifacts/
 
-          echo "Artifacts:"
-          ls -lah artifacts
+          echo "=== Artifact ==="
+          ls -lh artifacts/
 
-      - name: Upload package
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: adblock-${{ env.OPENWRT_VERSION }}-mediatek-filogic
-          path: artifacts/
+          path: artifacts/adblock_*.ipk
           if-no-files-found: error
