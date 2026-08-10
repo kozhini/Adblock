@@ -2562,7 +2562,13 @@ adb_rmcmd="$(f_cmd rm)"
 adb_catcmd="$(f_cmd cat)"
 adb_zcatcmd="$(f_cmd zcat)"
 adb_awkcmd="$(f_cmd gawk awk)"
-adb_sortcmd="$(f_cmd sort)"
+
+if [ -x "/usr/libexec/sort-coreutils" ]; then
+	adb_sortcmd="/usr/libexec/sort-coreutils"
+else
+	adb_sortcmd="$(f_cmd sort)"
+fi
+
 adb_grepcmd="$(f_cmd grep)"
 adb_gzipcmd="$(f_cmd gzip)"
 adb_pgrepcmd="$(f_cmd pgrep)"
