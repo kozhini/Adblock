@@ -67,28 +67,35 @@ jobs:
         run: |
           ./scripts/feeds update -a
           ./scripts/feeds install -a
-          ./scripts/feeds uninstall adblock
+          ./scripts/feeds uninstall adblock luci-app-adblock
           rm -rf feeds/packages/net/adblock
+          rm -rf feeds/luci/applications/luci-app-adblock
 
-      - name: Copy package to SDK
+      - name: Copy packages to SDK
         run: |
           mkdir -p openwrt-sdk/package/adblock
           cp Makefile openwrt-sdk/package/adblock/
           cp -r files openwrt-sdk/package/adblock/
 
-      - name: Configure package
+          mkdir -p openwrt-sdk/package/luci-app-adblock
+          cp -r luci-app-adblock/. openwrt-sdk/package/luci-app-adblock/
+
+      - name: Configure packages
         working-directory: openwrt-sdk
         run: |
           echo "CONFIG_PACKAGE_adblock=m" > .config
+          echo "CONFIG_PACKAGE_luci-app-adblock=m" >> .config
           make defconfig
 
-      - name: Compile package
+      - name: Compile packages
         working-directory: openwrt-sdk
         env:
           SOURCE_DATE_EPOCH: 1700000000
         run: |
           make package/adblock/clean V=s
           make package/adblock/compile V=s -j"$(nproc)"
+          make package/luci-app-adblock/clean V=s
+          make package/luci-app-adblock/compile V=s -j"$(nproc)"
 
       - name: Find built packages
         run: |
@@ -98,7 +105,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: adblock-${{ env.OPENWRT_VERSION }}-${{ env.ARCH }}
-          path: openwrt-sdk/bin/packages/**/adblock*.ipk
+          path: openwrt-sdk/bin/packages/**/{adblock,luci-app-adblock}*.ipk
           if-no-files-found: error
 
       - name: Prepare release files
@@ -106,6 +113,7 @@ jobs:
         run: |
           mkdir -p release
           find openwrt-sdk/bin/packages -name "adblock*.ipk" -exec cp {} release/ \;
+          find openwrt-sdk/bin/packages -name "luci-app-adblock*.ipk" -exec cp {} release/ \;
           TAG="openwrt-${OPENWRT_VERSION}-${{ steps.pkg_version.outputs.version }}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
