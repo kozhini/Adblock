@@ -72,12 +72,6 @@ jobs:
           rm -rf feeds/luci/applications/luci-app-adblock
           cp feeds/luci/luci.mk package/luci.mk
 
-      - name: Verify luci.mk
-        working-directory: openwrt-sdk
-        run: |
-          ls -la package/luci.mk
-          ls -la package/luci-app-adblock/
-
       - name: Copy packages to SDK
         run: |
           mkdir -p openwrt-sdk/package/adblock
